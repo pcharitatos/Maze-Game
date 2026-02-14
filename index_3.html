@@ -1,0 +1,667 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Valentine Interactive</title>
+
+<style>
+  :root{
+    --bg1:#9fc5e8;
+    --bg2:#cfe2f3;
+    --ink:#0f1f2e;
+
+    --yes:#1f8a3b;
+    --yes2:#14622a;
+    --no:#c62828;
+    --no2:#8e1b1b;
+
+    --card: rgba(255,255,255,.72);
+    --shadow: 0 18px 40px rgba(0,0,0,.18);
+  }
+
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;
+    overflow:hidden;
+    font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial;
+    color:var(--ink);
+    background:
+      radial-gradient(1200px 800px at 20% 15%, rgba(255,255,255,.45), transparent 60%),
+      radial-gradient(1000px 700px at 80% 25%, rgba(255,255,255,.30), transparent 55%),
+      linear-gradient(160deg, var(--bg1), var(--bg2));
+  }
+
+  /* ---------- Screens ---------- */
+  .screen{position:fixed; inset:0; display:none; z-index:2;}
+  .screen.active{display:block}
+
+  .stage{
+    height:100%;
+    padding:24px;
+    display:grid;
+    grid-template-rows:auto 1fr;
+    justify-items:center;
+    text-align:center;
+  }
+
+  .question{
+    margin-top:18px;
+    font-size:clamp(22px,3vw,34px);
+    font-weight:950;
+    letter-spacing:.2px;
+  }
+
+  .centerWrap{
+    height:100%;
+    width:100%;
+    display:grid;
+    place-items:center;
+  }
+
+  .hidden{display:none!important}
+
+  /* ---------- Buttons ---------- */
+  .choiceRow{
+    display:flex;
+    gap:92px;
+    align-items:center;
+    justify-content:center;
+  }
+  .choiceBtn{
+    width:190px;
+    height:190px;
+    border-radius:50%;
+    border:none;
+    color:#fff;
+    font-size:36px;
+    font-weight:950;
+    letter-spacing:.14em;
+    cursor:pointer;
+    box-shadow:0 22px 48px rgba(0,0,0,.24);
+    -webkit-tap-highlight-color: transparent;
+    user-select:none;
+  }
+  .choiceBtn:active{transform:scale(.975)}
+  .yesBtn{background:linear-gradient(180deg,var(--yes),var(--yes2))}
+  .noBtn{background:linear-gradient(180deg,var(--no),var(--no2))}
+
+  /* ---------- Nav buttons ---------- */
+  .navBtn{
+    position:fixed;
+    bottom:20px;
+    padding:12px 18px;
+    border-radius:14px;
+    border:none;
+    background:var(--card);
+    font-weight:950;
+    cursor:pointer;
+    box-shadow:var(--shadow);
+    z-index:10;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #backBtn{left:20px; display:none;}
+  #nextBtn{right:20px; display:none;}
+
+  /* ---------- Rain ---------- */
+  #rain{position:fixed; inset:0; pointer-events:none; z-index:1;}
+  .drop{
+    position:absolute;
+    top:-70px;
+    opacity:0;
+    animation: fall linear forwards;
+    filter: drop-shadow(0 10px 10px rgba(0,0,0,.15));
+  }
+  @keyframes fall{
+    0%{ opacity:0; transform:translateX(var(--x)) rotate(0deg); }
+    10%{ opacity:1; }
+    100%{
+      opacity:0;
+      transform:
+        translateX(calc(var(--x) + var(--drift)))
+        translateY(110vh)
+        rotate(var(--rot));
+    }
+  }
+
+  /* ---------- Message ---------- */
+  #msg{
+    position:fixed;
+    left:50%;
+    bottom:80px;
+    transform:translateX(-50%);
+    padding:12px 18px;
+    border-radius:14px;
+    background:var(--card);
+    box-shadow:var(--shadow);
+    font-weight:950;
+    letter-spacing:.18em;
+    opacity:0;
+    pointer-events:none;
+    z-index:6;
+  }
+  #msg.flash3{ animation: flash3 1.35s forwards; }
+  @keyframes flash3{
+    0%{opacity:0}
+    10%{opacity:1}
+    25%{opacity:0}
+    40%{opacity:1}
+    55%{opacity:0}
+    70%{opacity:1}
+    100%{opacity:1}
+  }
+
+  /* ---------- Tenor NO GIF containers ---------- */
+  .gifWrap{
+    display:none;
+    width:min(760px, 92vw);
+    background:var(--card);
+    border-radius:18px;
+    padding:14px;
+    box-shadow:var(--shadow);
+  }
+  .gifWrap.on{display:block}
+  .gifWrap .tenor-gif-embed{border-radius:14px; overflow:hidden;}
+
+  /* ---------- Maze UI ---------- */
+  .legend{
+    width:min(1040px, calc(100vw - 48px));
+    margin:10px auto 0;
+    background:var(--card);
+    border-radius:16px;
+    padding:10px 12px;
+    box-shadow:var(--shadow);
+    display:flex;
+    justify-content:center;
+    gap:12px;
+    flex-wrap:wrap;
+    font-weight:950;
+  }
+  .legend span{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    padding:6px 10px;
+    border-radius:12px;
+    background:rgba(15,31,46,.06);
+  }
+
+  #gameCanvas{
+    width:calc(100vw - 48px);
+    height:calc(100vh - 280px);
+    border-radius:18px;
+    background:rgba(255,255,255,.10);
+    box-shadow:var(--shadow);
+    display:block;
+  }
+  .hint{margin-top:10px; font-weight:900; opacity:.92;}
+
+  /* ---------- Overlay ---------- */
+  #overlay{
+    position:fixed;
+    inset:0;
+    display:none;
+    place-items:center;
+    background:rgba(0,0,0,.35);
+    z-index:30;
+  }
+  #overlay.on{display:grid}
+  .overlayCard{
+    width:min(820px, 92vw);
+    background:rgba(255,255,255,.92);
+    border-radius:18px;
+    padding:14px;
+    box-shadow:0 24px 60px rgba(0,0,0,.22);
+    text-align:left;
+  }
+  .overlayTitle{
+    font-weight:950;
+    letter-spacing:.10em;
+    margin:6px 0 10px;
+  }
+
+  /* ✅ Make GIF smaller so Continue is always visible */
+  #gifBox{
+    border-radius:14px;
+    overflow:hidden;
+    background:rgba(15,31,46,.06);
+    padding:10px;
+    min-height:220px;
+    max-height:60vh;        /* limits overall gif area */
+  }
+  #gifBox .tenor-gif-embed{
+    max-height:52vh;        /* limits the embed itself */
+    overflow:hidden;
+  }
+
+  .overlayBtns{
+    margin-top:12px;
+    display:flex;
+    justify-content:flex-end;
+    gap:10px;
+  }
+  .smallBtn{
+    padding:10px 14px;
+    border-radius:12px;
+    border:none;
+    background:rgba(15,31,46,.10);
+    font-weight:950;
+    cursor:pointer;
+  }
+
+  .mazeGif{display:none;}
+  .mazeGif.on{display:block;}
+</style>
+</head>
+
+<body>
+
+<div id="rain" aria-hidden="true"></div>
+<div id="msg" aria-hidden="true">YOU DESERVE THEM!</div>
+
+<button id="backBtn" class="navBtn" type="button">Back</button>
+<button id="nextBtn" class="navBtn" type="button">Want more?</button>
+
+<!-- SECTION 1 -->
+<section id="screen1" class="screen active" aria-label="Flowers">
+  <div class="stage">
+    <div id="q1" class="question">Do you like flowers?</div>
+    <div class="centerWrap">
+      <div id="c1" class="choiceRow">
+        <button class="choiceBtn yesBtn" id="s1Yes" type="button">YES</button>
+        <button class="choiceBtn noBtn"  id="s1No"  type="button">NO</button>
+      </div>
+
+      <div id="noGif1" class="gifWrap" aria-hidden="true">
+        <div class="tenor-gif-embed" data-postid="24000193" data-share-method="host" data-width="100%"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SECTION 2 -->
+<section id="screen2" class="screen" aria-label="Chocolate">
+  <div class="stage">
+    <div id="q2" class="question">Do you like chocolate?</div>
+    <div class="centerWrap">
+      <div id="c2" class="choiceRow">
+        <button class="choiceBtn yesBtn" id="s2Yes" type="button">YES</button>
+        <button class="choiceBtn noBtn"  id="s2No"  type="button">NO</button>
+      </div>
+
+      <div id="noGif2" class="gifWrap" aria-hidden="true">
+        <div class="tenor-gif-embed" data-postid="5631704" data-share-method="host" data-width="100%"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SECTION 3 -->
+<section id="screen3" class="screen" aria-label="Maze">
+  <div class="stage" style="grid-template-rows:auto auto 1fr;">
+    <div class="question">What do you crave the most right now?</div>
+
+    <div class="legend" aria-label="Legend">
+      <span>❤️ Sex</span>
+      <span>🍔 Food</span>
+      <span>🚬 Cigarettes</span>
+      <span>🍺 Alcohol</span>
+      <span>🎵 Music</span>
+    </div>
+
+    <div class="centerWrap" style="place-items:stretch; width:100%;">
+      <div style="width:100%; align-self:center;">
+        <canvas id="gameCanvas" width="1600" height="900"></canvas>
+        <div class="hint">Use arrow keys to drive.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Overlay for maze target GIFs -->
+<div id="overlay" aria-hidden="true">
+  <div class="overlayCard">
+    <div id="overlayTitle" class="overlayTitle">REACHED</div>
+
+    <div id="gifBox">
+      <!-- These are embedded like sections 1 & 2: present in DOM, just hidden -->
+      <div id="mazeSexGif" class="mazeGif">
+        <div class="tenor-gif-embed" data-postid="5123921293153915970" data-share-method="host" data-width="100%"></div>
+      </div>
+
+      <div id="mazeFoodGif" class="mazeGif">
+        <div class="tenor-gif-embed" data-postid="16324802" data-share-method="host" data-width="100%"></div>
+      </div>
+
+      <div id="mazeCigGif" class="mazeGif">
+        <div class="tenor-gif-embed"
+             data-postid="21882844"
+             data-share-method="host"
+             data-aspect-ratio="1"
+             data-width="100%">
+          <a href="https://tenor.com/view/k00srat-snoop-dogg-dog-smoking-gif-21882844">K00srat Snoop GIF</a>
+          from <a href="https://tenor.com/search/k00srat-gifs">K00srat GIFs</a>
+        </div>
+      </div>
+
+      <div id="mazeAlcGif" class="mazeGif">
+        <div class="tenor-gif-embed" data-postid="12107961" data-share-method="host" data-width="100%"></div>
+      </div>
+
+      <div id="mazeMusicGif" class="mazeGif">
+        <div class="tenor-gif-embed" data-postid="3281677442229902284" data-share-method="host" data-width="100%"></div>
+      </div>
+    </div>
+
+    <div class="overlayBtns">
+      <button id="overlayClose" class="smallBtn" type="button">Continue</button>
+    </div>
+  </div>
+</div>
+
+<!-- Tenor script ONCE -->
+<script async src="https://tenor.com/embed.js"></script>
+
+<script>
+/* ===================== Tenor reload helper ===================== */
+function refreshTenor(){
+  let tries = 0;
+  const tick = () => {
+    tries++;
+    if(window.Tenor && typeof window.Tenor.reload === 'function'){
+      try{ window.Tenor.reload(); }catch(e){}
+      // sometimes needs a second pass
+      setTimeout(()=>{ try{ window.Tenor.reload(); }catch(e){} }, 160);
+      return;
+    }
+    if(tries < 25) setTimeout(tick, 120);
+  };
+  tick();
+}
+
+function clearFocusAndSelection(){
+  if(document.activeElement && document.activeElement.blur) document.activeElement.blur();
+  const sel = window.getSelection && window.getSelection();
+  if(sel && sel.removeAllRanges) sel.removeAllRanges();
+}
+
+/* ===================== Navigation ===================== */
+const screens = [
+  document.getElementById('screen1'),
+  document.getElementById('screen2'),
+  document.getElementById('screen3')
+];
+let current = 0;
+
+const backBtn = document.getElementById('backBtn');
+const nextBtn = document.getElementById('nextBtn');
+
+function setNextLabel(){
+  if(current === 0) nextBtn.textContent = 'Want more?';
+  if(current === 1) nextBtn.textContent = 'A little bit more?';
+}
+
+const q1 = document.getElementById('q1');
+const c1 = document.getElementById('c1');
+const noGif1 = document.getElementById('noGif1');
+
+const q2 = document.getElementById('q2');
+const c2 = document.getElementById('c2');
+const noGif2 = document.getElementById('noGif2');
+
+const msg = document.getElementById('msg');
+
+function resetSection(n){
+  if(n===1){
+    q1.classList.remove('hidden');
+    c1.classList.remove('hidden');
+    noGif1.classList.remove('on');
+    noGif1.setAttribute('aria-hidden','true');
+  }
+  if(n===2){
+    q2.classList.remove('hidden');
+    c2.classList.remove('hidden');
+    noGif2.classList.remove('on');
+    noGif2.setAttribute('aria-hidden','true');
+  }
+}
+
+function showScreen(idx){
+  screens.forEach((s,i)=>s.classList.toggle('active', i===idx));
+  current = idx;
+
+  backBtn.style.display = (idx > 0) ? 'block' : 'none';
+  nextBtn.style.display = 'none';
+  setNextLabel();
+
+  msg.classList.remove('flash3');
+  msg.style.opacity = '0';
+  msg.setAttribute('aria-hidden','true');
+
+  if(idx === 0) resetSection(1);
+  if(idx === 1) resetSection(2);
+
+  clearFocusAndSelection();
+}
+
+backBtn.addEventListener('click', () => { if(current > 0) showScreen(current - 1); }, {passive:true});
+nextBtn.addEventListener('click', () => { if(current < screens.length - 1) showScreen(current + 1); }, {passive:true});
+
+/* ===================== Falling effects ===================== */
+const rain = document.getElementById('rain');
+function spawnDrop(char){
+  const d = document.createElement('div');
+  d.className = 'drop';
+  d.textContent = char;
+  d.style.fontSize = (18 + Math.random()*28) + 'px';
+  d.style.setProperty('--x', (Math.random()*100) + 'vw');
+  d.style.setProperty('--drift', (-20 + Math.random()*40) + 'vw');
+  d.style.setProperty('--rot', (-240 + Math.random()*480) + 'deg');
+  const dur = 2.6 + Math.random()*2.4;
+  d.style.animationDuration = dur + 's';
+  d.style.left = '0';
+  rain.appendChild(d);
+  setTimeout(()=>d.remove(), (dur+0.7)*1000);
+  return dur;
+}
+function burst(items, spawnWindowMs=2200){
+  let maxDur = 0;
+  const start = performance.now();
+  function loop(now){
+    if(now - start > spawnWindowMs) return;
+    for(let i=0;i<4;i++){
+      const dur = spawnDrop(items[(Math.random()*items.length)|0]);
+      if(dur > maxDur) maxDur = dur;
+    }
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+  return spawnWindowMs + maxDur*1000;
+}
+function flashYouDeserveNearEnd(totalMs){
+  msg.setAttribute('aria-hidden','false');
+  setTimeout(() => {
+    msg.classList.remove('flash3');
+    void msg.offsetWidth;
+    msg.classList.add('flash3');
+  }, Math.max(700, totalMs - 850));
+}
+
+/* ===================== Section 1 & 2 logic ===================== */
+const FLOWERS = ['🌹','🌷','🌼','🪷','💐','🌻'];
+const CHOC    = ['🍫','🍪','🍩','🧁','🍬'];
+
+function handleYes(n){
+  (n===1 ? c1 : c2).classList.add('hidden');
+  const total = burst(n===1 ? FLOWERS : CHOC);
+  flashYouDeserveNearEnd(total);
+  setTimeout(() => {
+    setNextLabel();
+    nextBtn.style.display = 'block';
+  }, total + 250);
+  clearFocusAndSelection();
+}
+
+function handleNo(n){
+  if(n===1){
+    c1.classList.add('hidden'); q1.classList.add('hidden');
+    noGif1.classList.add('on'); noGif1.setAttribute('aria-hidden','false');
+  } else {
+    c2.classList.add('hidden'); q2.classList.add('hidden');
+    noGif2.classList.add('on'); noGif2.setAttribute('aria-hidden','false');
+  }
+
+  msg.classList.remove('flash3');
+  msg.style.opacity = '0';
+  msg.setAttribute('aria-hidden','true');
+
+  setNextLabel();
+  nextBtn.style.display = 'block';
+
+  refreshTenor();
+  clearFocusAndSelection();
+}
+
+document.getElementById('s1Yes').addEventListener('click', ()=>handleYes(1), {passive:true});
+document.getElementById('s1No').addEventListener('click',  ()=>handleNo(1),  {passive:true});
+document.getElementById('s2Yes').addEventListener('click', ()=>handleYes(2), {passive:true});
+document.getElementById('s2No').addEventListener('click',  ()=>handleNo(2),  {passive:true});
+
+/* ===================== MAZE (simple + targets open) ===================== */
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+const overlay = document.getElementById('overlay');
+const overlayTitle = document.getElementById('overlayTitle');
+const overlayClose = document.getElementById('overlayClose');
+
+let gamePaused = false;
+
+function overlap(ax,ay,aw,ah, bx,by,bw,bh){
+  return ax < bx+bw && ax+aw > bx && ay < by+bh && ay+ah > by;
+}
+function clamp(v,lo,hi){ return Math.max(lo, Math.min(hi, v)); }
+
+const car = { x: 760, y: 420, w: 34, h: 34, speed: 28, emoji: '🚗' };
+
+const WALL = 18;
+const walls = [
+  {x:0,y:0,w:1600,h:WALL},{x:0,y:900-WALL,w:1600,h:WALL},
+  {x:0,y:0,w:WALL,h:900},{x:1600-WALL,y:0,w:WALL,h:900},
+
+  {x:320,y:160,w:WALL,h:580},
+  {x:820,y:120,w:WALL,h:620},
+  {x:1220,y:160,w:WALL,h:580},
+
+  {x:320,y:300,w:520,h:WALL},
+  {x:820,y:560,w:420,h:WALL},
+];
+
+const targets = [
+  { key:'Sex', icon:'❤️', x:80,  y:70,  w:120, h:120, hit:false, gifId:'mazeSexGif' },
+  { key:'Food', icon:'🍔', x:1400,y:70,  w:120, h:120, hit:false, gifId:'mazeFoodGif' },
+  { key:'Cigarettes', icon:'🚬', x:80,  y:730, w:120, h:120, hit:false, gifId:'mazeCigGif' },
+  { key:'Alcohol', icon:'🍺', x:1400,y:730, w:120, h:120, hit:false, gifId:'mazeAlcGif' },
+  { key:'Music', icon:'🎵', x:740, y:740, w:120, h:120, hit:false, gifId:'mazeMusicGif' },
+];
+
+function moveCar(dx,dy){
+  const nx = car.x + dx;
+  const ny = car.y + dy;
+
+  const cx = clamp(nx, WALL, 1600 - WALL - car.w);
+  const cy = clamp(ny, WALL, 900  - WALL - car.h);
+
+  for(const w of walls){
+    if(overlap(cx, cy, car.w, car.h, w.x, w.y, w.w, w.h)) return;
+  }
+  car.x = cx; car.y = cy;
+}
+
+function drawMaze(){
+  ctx.clearRect(0,0,1600,900);
+
+  ctx.fillStyle = 'rgba(255,255,255,.06)';
+  ctx.fillRect(0,0,1600,900);
+
+  ctx.fillStyle = 'rgba(10,22,34,.92)';
+  for(const w of walls) ctx.fillRect(w.x,w.y,w.w,w.h);
+
+  for(const t of targets){
+    ctx.globalAlpha = t.hit ? 0.35 : 1;
+    ctx.font = '92px Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, sans-serif';
+    ctx.fillText(t.icon, t.x, t.y + 86);
+    ctx.globalAlpha = 1;
+  }
+
+  ctx.font = '70px Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, sans-serif';
+  ctx.fillText(car.emoji, car.x - 12, car.y + 62);
+}
+
+function showMazeGif(gifId){
+  document.querySelectorAll('.mazeGif').forEach(el => el.classList.remove('on'));
+  const el = document.getElementById(gifId);
+  if(el) el.classList.add('on');
+}
+
+function openTarget(t){
+  gamePaused = true;
+  t.hit = true;
+
+  overlayTitle.textContent = `REACHED: ${t.key.toUpperCase()}`;
+  showMazeGif(t.gifId);
+
+  overlay.classList.add('on');
+  overlay.setAttribute('aria-hidden','false');
+
+  refreshTenor();
+}
+
+function checkTargets(){
+  for(const t of targets){
+    if(t.hit) continue;
+    if(overlap(car.x, car.y, car.w, car.h, t.x+10, t.y+10, t.w-20, t.h-20)){
+      openTarget(t);
+      break;
+    }
+  }
+}
+
+overlayClose.addEventListener('click', () => {
+  overlay.classList.remove('on');
+  overlay.setAttribute('aria-hidden','true');
+  document.querySelectorAll('.mazeGif').forEach(el => el.classList.remove('on'));
+  gamePaused = false;
+  clearFocusAndSelection();
+}, {passive:true});
+
+document.addEventListener('keydown', (e) => {
+  if(current !== 2) return;
+  if(gamePaused) return;
+
+  const k = e.key;
+  if(k.startsWith('Arrow')) e.preventDefault();
+
+  const s = car.speed;
+  if(k === 'ArrowUp') moveCar(0, -s);
+  if(k === 'ArrowDown') moveCar(0, s);
+  if(k === 'ArrowLeft') moveCar(-s, 0);
+  if(k === 'ArrowRight') moveCar(s, 0);
+
+  checkTargets();
+}, {passive:false});
+
+function loop(){
+  if(current === 2) drawMaze();
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+/* ===================== Start ===================== */
+showScreen(0);
+refreshTenor();
+</script>
+
+</body>
+</html>
