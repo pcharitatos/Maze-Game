@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Valentine Interactive</title>
+<title>Surprise</title>
 
 <style>
   :root{
@@ -65,7 +65,7 @@
   /* ---------- Buttons ---------- */
   .choiceRow{
     display:flex;
-    gap:92px;
+    gap:140px; /* longer distance */
     align-items:center;
     justify-content:center;
   }
@@ -221,17 +221,17 @@
     margin:6px 0 10px;
   }
 
-  /* ✅ Make GIF smaller so Continue is always visible */
+  /* ✅ keep gif smaller so Continue is visible */
   #gifBox{
     border-radius:14px;
     overflow:hidden;
     background:rgba(15,31,46,.06);
     padding:10px;
     min-height:220px;
-    max-height:60vh;        /* limits overall gif area */
+    max-height:60vh;
   }
   #gifBox .tenor-gif-embed{
-    max-height:52vh;        /* limits the embed itself */
+    max-height:52vh;
     overflow:hidden;
   }
 
@@ -325,7 +325,6 @@
     <div id="overlayTitle" class="overlayTitle">REACHED</div>
 
     <div id="gifBox">
-      <!-- These are embedded like sections 1 & 2: present in DOM, just hidden -->
       <div id="mazeSexGif" class="mazeGif">
         <div class="tenor-gif-embed" data-postid="5123921293153915970" data-share-method="host" data-width="100%"></div>
       </div>
@@ -335,14 +334,7 @@
       </div>
 
       <div id="mazeCigGif" class="mazeGif">
-        <div class="tenor-gif-embed"
-             data-postid="21882844"
-             data-share-method="host"
-             data-aspect-ratio="1"
-             data-width="100%">
-          <a href="https://tenor.com/view/k00srat-snoop-dogg-dog-smoking-gif-21882844">K00srat Snoop GIF</a>
-          from <a href="https://tenor.com/search/k00srat-gifs">K00srat GIFs</a>
-        </div>
+        <div class="tenor-gif-embed" data-postid="21882844" data-share-method="host" data-width="100%"></div>
       </div>
 
       <div id="mazeAlcGif" class="mazeGif">
@@ -360,6 +352,13 @@
   </div>
 </div>
 
+<!-- ✅ AUDIO FILES (put these next to index.html) -->
+<audio id="audSex" preload="auto"><source src="thx.mp3" type="audio/mpeg"></audio>
+<audio id="audFood" preload="auto"><source src="vip-bad-bunny.mp3" type="audio/mpeg"></audio>
+<audio id="audCig"  preload="auto"><source src="snoop-dogg_Xm0SJsU.mp3" type="audio/mpeg"></audio>
+<audio id="audMusic" preload="auto"><source src="john-cena-vibing-to-cupid.mp3" type="audio/mpeg"></audio>
+<audio id="audAlc" preload="auto"><source src="rum_gone_remix.mp3" type="audio/mpeg"></audio>
+
 <!-- Tenor script ONCE -->
 <script async src="https://tenor.com/embed.js"></script>
 
@@ -371,7 +370,6 @@ function refreshTenor(){
     tries++;
     if(window.Tenor && typeof window.Tenor.reload === 'function'){
       try{ window.Tenor.reload(); }catch(e){}
-      // sometimes needs a second pass
       setTimeout(()=>{ try{ window.Tenor.reload(); }catch(e){} }, 160);
       return;
     }
@@ -384,6 +382,61 @@ function clearFocusAndSelection(){
   if(document.activeElement && document.activeElement.blur) document.activeElement.blur();
   const sel = window.getSelection && window.getSelection();
   if(sel && sel.removeAllRanges) sel.removeAllRanges();
+}
+
+/* ===================== Audio helpers ===================== */
+const aud = {
+  Sex: document.getElementById('audSex'),
+  Food: document.getElementById('audFood'),
+  Cigarettes: document.getElementById('audCig'),
+  Music: document.getElementById('audMusic'),
+  Alcohol: document.getElementById('audAlc'),
+};
+
+let audioUnlocked = false;
+function unlockAudioOnce(){
+  if(audioUnlocked) return;
+  audioUnlocked = true;
+
+  // Try to "prime" each audio so later plays are more reliable.
+  Object.values(aud).forEach(a => {
+    if(!a) return;
+    try{
+      a.volume = 0.0;
+      const p = a.play();
+      if(p && typeof p.then === 'function'){
+        p.then(() => {
+          a.pause(); a.currentTime = 0; a.volume = 1.0;
+        }).catch(() => { a.volume = 1.0; });
+      }else{
+        a.pause(); a.currentTime = 0; a.volume = 1.0;
+      }
+    }catch(e){
+      try{ a.volume = 1.0; }catch(_){}
+    }
+  });
+}
+['pointerdown','keydown','touchstart'].forEach(evt=>{
+  document.addEventListener(evt, unlockAudioOnce, {passive:true, once:true});
+});
+
+function stopAllAudio(){
+  Object.values(aud).forEach(a=>{
+    if(!a) return;
+    try{ a.pause(); a.currentTime = 0; }catch(e){}
+  });
+}
+
+function playAudioForTarget(key){
+  const a = aud[key];
+  if(!a) return;
+  try{
+    a.pause();
+    a.currentTime = 0;
+    a.volume = 1.0;
+    const p = a.play();
+    if(p && p.catch) p.catch(()=>{});
+  }catch(e){}
 }
 
 /* ===================== Navigation ===================== */
@@ -528,7 +581,7 @@ document.getElementById('s1No').addEventListener('click',  ()=>handleNo(1),  {pa
 document.getElementById('s2Yes').addEventListener('click', ()=>handleYes(2), {passive:true});
 document.getElementById('s2No').addEventListener('click',  ()=>handleNo(2),  {passive:true});
 
-/* ===================== MAZE (simple + targets open) ===================== */
+/* ===================== MAZE ===================== */
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
@@ -543,17 +596,20 @@ function overlap(ax,ay,aw,ah, bx,by,bw,bh){
 }
 function clamp(v,lo,hi){ return Math.max(lo, Math.min(hi, v)); }
 
-const car = { x: 760, y: 420, w: 34, h: 34, speed: 28, emoji: '🚗' };
+const car = { x: 760, y: 420, w: 34, h: 34, speed: 30, emoji: '🚗' };
 
 const WALL = 18;
 const walls = [
+  // outer border
   {x:0,y:0,w:1600,h:WALL},{x:0,y:900-WALL,w:1600,h:WALL},
   {x:0,y:0,w:WALL,h:900},{x:1600-WALL,y:0,w:WALL,h:900},
 
+  // inner verticals
   {x:320,y:160,w:WALL,h:580},
   {x:820,y:120,w:WALL,h:620},
   {x:1220,y:160,w:WALL,h:580},
 
+  // connectors
   {x:320,y:300,w:520,h:WALL},
   {x:820,y:560,w:420,h:WALL},
 ];
@@ -609,6 +665,9 @@ function openTarget(t){
   gamePaused = true;
   t.hit = true;
 
+  stopAllAudio();
+  playAudioForTarget(t.key);
+
   overlayTitle.textContent = `REACHED: ${t.key.toUpperCase()}`;
   showMazeGif(t.gifId);
 
@@ -632,6 +691,7 @@ overlayClose.addEventListener('click', () => {
   overlay.classList.remove('on');
   overlay.setAttribute('aria-hidden','true');
   document.querySelectorAll('.mazeGif').forEach(el => el.classList.remove('on'));
+  stopAllAudio();
   gamePaused = false;
   clearFocusAndSelection();
 }, {passive:true});
